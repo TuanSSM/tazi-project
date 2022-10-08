@@ -1,0 +1,3 @@
+Application shutdown, with runner at: 50
+Application shutdown, with runner at: 196
+Application shutdown, with runner at: 42
