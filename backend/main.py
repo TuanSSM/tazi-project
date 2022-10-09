@@ -14,7 +14,7 @@ app = FastAPI()
 csv_file = '../data/data.csv'
 
 # Populates DB
-class BackgroundRunner():
+class GrowingDataSource():
     def __init__(self, in_file):
         self.count = 1
         self.in_file = in_file
@@ -32,7 +32,8 @@ class BackgroundRunner():
                                 model3_B = float(mdl3_B[:-2]))
         return prediction
 
-    async def create_prediction(self, data, db):
+    async def create_prediction(self, data):
+        db = SessionLocal()
         db.add(data)
         db.commit()
         db.refresh(data)
@@ -44,30 +45,51 @@ class BackgroundRunner():
                 next(file)
             for line in file:
                 await asyncio.sleep(0.002)
-                db = SessionLocal()
                 data = self.parse_prediction(line)
-                await self.create_prediction(data, db)
+                await self.create_prediction(data)
                 print(data)
                 print(f'Data creation successful for index: {self.count}')
                 self.count += 1
 
-runner = BackgroundRunner(csv_file)
+class ConfusionMatrix():
+    def __init(self):
+        self.count = 1
+
+    def predicted_label(self, prediction):
+        pass
+
+    async def create_matrix(self, predictions):
+        pass
+
+    async def run_main(self):
+        pass
+
+ds_runner = GrowingDataSource(csv_file)
 
 @app.on_event('startup')
 async def app_startup():
-    asyncio.create_task(runner.run_main())
+    asyncio.create_task(ds_runner.run_main())
 
 @app.on_event("shutdown")
 def shutdown_event():
     with open("log.txt", mode="a") as log:
-        log.write(f'Application shutdown, with runner at: {runner.count}\n')
+        log.write(f'Application shutdown, with ds_runner at: {ds_runner.count}\n')
     model.Base.metadata.drop_all(bind=engine)
     print('Database is purged')
 
 @app.get('/')
 async def Home(background_tasks: BackgroundTasks):
     #background_tasks.add_task(populate_db, message="Test")
-    #asyncio.create_task(runner.run_main())
-    return f'Welcome Home, btw runner is at: {runner.count}'
+    #asyncio.create_task(ds_runner.run_main())
+    return f'Welcome Home, btw ds_runner is at: {ds_runner.count}'
+
+@app.get('/sliding_window')
+async def Window(id:int,size=1000):
+    #background_tasks.add_task(populate_db, message="Test")
+    #asyncio.create_task(ds_runner.run_main())
+    db = SessionLocal()
+    window = crud.get_prediction(db,skip=id, limit=size)
+    db.close()
+    return window
 
 app.include_router(router.router, prefix='/prediction', tags=['prediction'])

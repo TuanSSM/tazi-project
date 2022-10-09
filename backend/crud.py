@@ -2,8 +2,8 @@ from sqlalchemy.orm import Session
 from model import Prediction, ConfusionMatrix
 from schemas import PredictionSchema, ConfusionMatrixSchema
 
-def get_prediction(db:Session,skip:int=0,limit:int=1000):
-    return db.query(Prediction).offset(skip).limit(limit).all()
+def get_prediction(db:Session,skip:int=1,limit:int=10000):
+    return db.query(Prediction).offset(skip-1).limit(limit).all()
 
 def get_prediction_by_id(db:Session,prediction_id: int):
     return db.query(Prediction).filter(Prediction.id == prediction_id).first()
