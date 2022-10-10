@@ -12,8 +12,6 @@ import uvicorn
 
 model.Base.metadata.create_all(bind=engine)
 
-
-
 logging.basicConfig(level=logging.DEBUG,
                     format='(%(threadName)-9s) %(message)s',)
 
@@ -23,23 +21,27 @@ csv_file = '../data/data.csv'
 
 class GrowingDataSource():
     def __init__(self, in_file):
-        self.count = 1
+        self.count = 0
         self.in_file = in_file
 
     def parse_prediction(self, csv_line):
-        params = csv_line.split(',')
-        id, lbl, mdl1_A, mdl1_B, mdl2_A, mdl2_B, mdl3_A, mdl3_B = params
+        params = csv_line.replace('\n','').split(',')
+        _ , lbl, *mdls  = params
+
+        mdls = [float(elm) for elm in mdls]
+
+        mdl1_A, mdl1_B, mdl2_A, mdl2_B, mdl3_A, mdl3_B = mdls
 
         prediction = model.Prediction(label = lbl,
-                                model1_A = float(mdl1_A),
-                                model1_B = float(mdl1_B),
-                                model2_A = float(mdl2_A),
-                                model2_B = float(mdl2_B),
-                                model3_A = float(mdl3_A),
-                                model3_B = float(mdl3_B[:-2]))
+                                model1_A = mdl1_A,
+                                model1_B = mdl1_B,
+                                model2_A = mdl2_A,
+                                model2_B = mdl2_B,
+                                model3_A = mdl3_A,
+                                model3_B = mdl3_B)
         return prediction
 
-    async def create_prediction(self, data):
+    async def commit_prediction(self, data):
         db = SessionLocal()
         db.add(data)
         db.commit()
@@ -51,41 +53,76 @@ class GrowingDataSource():
             for _ in range(1):
                 next(file)
             for line in file:
-                await asyncio.sleep(0.02)
+                await asyncio.sleep(0.002)
                 data = self.parse_prediction(line)
-                await self.create_prediction(data)
+                await self.commit_prediction(data)
+                self.count += 1
                 logging.debug(str(data))
                 logging.debug(f'Data creation successful for index: {self.count}')
-                if self.count == 50:
+                if self.count == 10: # Change it to 1000
                     event.set()
-                    logging.debug('Event is set'*10)
-                self.count += 1
 
 class ConfusionMatrix():
     def __init__(self):
         self.count = 1
+        self.matrix_tmp = { 'id' : 0,
+                            'true_A' : 0,
+                            'false_A' : 0,
+                            'true_B' : 0,
+                            'false_B' : 0 }
 
-    def predicted_label(self, prediction):
+    def w_avg(self, values: [float,float,float]) -> float:
+        weights = [0.5,0.6,0.7]
+        avg = sum([a*b for a,b in zip(values,weights)])/sum(weights)
+        return avg
+
+    def predicted_label(self, pr : model.Prediction):
+        pr_a = [pr.model1_A, pr.model2_A, pr.model3_A]
+        pr_b = [pr.model1_B, pr.model2_B, pr.model3_B]
+        predicted = 'A' if self.w_avg(pr_a) > self.w_avg(pr_b) else 'B'
+        return pr.label, predicted
+
+    def create_matrix(self, predictions : [model.Prediction]) -> model.ConfusionMatrix:
+        for prediction in predictions:
+            pass
+
+    def slide_matrix(self, pr : model.Prediction):
+        label, predicted = self.predicted_label(pr)
+
+    async def post_matrix(self, predictions : model.ConfusionMatrix) -> None:
         pass
 
-    async def create_matrix(self, predictions):
-        pass
+    async def init_matrix(self):
 
-    async def run_matrices(self):#, event):
-        print('Background task started')
-        for _ in range(50):
+    async def run_swindow(self):#, event):
+        logging.debug('!!!Confusion matrix RUNNER is WORKING!!!')
+        for i in range(50): #Change this later
             await asyncio.sleep(0.02)
-            logging.debug('!!!Confusion MATRIX RUNNER IS WORKING!!!')
+            db = SessionLocal()
+            if self.matrix_tmp['id'] == 0: # get rid of this later
+                window = crud.get_prediction(db,skip=i+1, limit=10) # Change limit to 1000
+                db.close()
+                initMatrixList = []
+                for p in window:
+                    real, pred = self.predicted_label(p)
+                    logging.debug('Real: ' + real + ' | Predicted: ' + pred)
+                    initMatrixList.append((real,pred))
+                    # Create first matrix
+                    # Remove first item from matrix and store it in self.matrixtmp
+            else:
+                window = crud.get_prediction_by_id(db,self.matrix_tmp['id']+1000)
+                # Do relative calc for sliding window
+                pass
 
 class BackgroundTasks(Thread):
-    def run(sef, *args, **kwargs):
+    def run(self, *args, **kwargs):
         event.wait()
-        asyncio.run(cm_runner.run_matrices())
+        cm_runner = ConfusionMatrix()
+        asyncio.run(cm_runner.run_swindow())
         logging.debug('Worker closing down')
 
 event = Event()
 ds_runner = GrowingDataSource(csv_file)
-cm_runner = ConfusionMatrix()
 
 @app.on_event('startup')
 async def app_startup():
