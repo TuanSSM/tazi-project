@@ -1,4 +1,4 @@
-from fastapi import FastAPI, BackgroundTasks, Depends
+from fastapi import FastAPI
 import model
 from config import SessionLocal, engine
 import router
@@ -6,14 +6,21 @@ import asyncio
 import crud
 from schemas import RequestPrediction
 from sqlalchemy.orm import Session
+from threading import Thread, Event
+import logging
+import uvicorn
 
 model.Base.metadata.create_all(bind=engine)
+
+
+
+logging.basicConfig(level=logging.DEBUG,
+                    format='(%(threadName)-9s) %(message)s',)
 
 app = FastAPI()
 
 csv_file = '../data/data.csv'
 
-# Populates DB
 class GrowingDataSource():
     def __init__(self, in_file):
         self.count = 1
@@ -39,20 +46,23 @@ class GrowingDataSource():
         db.refresh(data)
         db.close()
 
-    async def run_main(self):
+    async def run_main(self, event):
         with open(self.in_file) as file:
             for _ in range(1):
                 next(file)
             for line in file:
-                await asyncio.sleep(0.002)
+                await asyncio.sleep(0.02)
                 data = self.parse_prediction(line)
                 await self.create_prediction(data)
-                print(data)
-                print(f'Data creation successful for index: {self.count}')
+                logging.debug(str(data))
+                logging.debug(f'Data creation successful for index: {self.count}')
+                if self.count == 50:
+                    event.set()
+                    logging.debug('Event is set'*10)
                 self.count += 1
 
 class ConfusionMatrix():
-    def __init(self):
+    def __init__(self):
         self.count = 1
 
     def predicted_label(self, prediction):
@@ -61,14 +71,29 @@ class ConfusionMatrix():
     async def create_matrix(self, predictions):
         pass
 
-    async def run_main(self):
-        pass
+    async def run_matrices(self):#, event):
+        print('Background task started')
+        for _ in range(50):
+            await asyncio.sleep(0.02)
+            logging.debug('!!!Confusion MATRIX RUNNER IS WORKING!!!')
 
+class BackgroundTasks(Thread):
+    def run(sef, *args, **kwargs):
+        event.wait()
+        asyncio.run(cm_runner.run_matrices())
+        logging.debug('Worker closing down')
+
+event = Event()
 ds_runner = GrowingDataSource(csv_file)
+cm_runner = ConfusionMatrix()
 
 @app.on_event('startup')
 async def app_startup():
-    asyncio.create_task(ds_runner.run_main())
+    t = BackgroundTasks()
+    #t2 = BackgroundTasks()
+    t.start()
+    #t2.start()
+    asyncio.create_task(ds_runner.run_main(event))
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -78,18 +103,17 @@ def shutdown_event():
     print('Database is purged')
 
 @app.get('/')
-async def Home(background_tasks: BackgroundTasks):
-    #background_tasks.add_task(populate_db, message="Test")
-    #asyncio.create_task(ds_runner.run_main())
+async def Home():
     return f'Welcome Home, btw ds_runner is at: {ds_runner.count}'
 
 @app.get('/sliding_window')
 async def Window(id:int,size=1000):
-    #background_tasks.add_task(populate_db, message="Test")
-    #asyncio.create_task(ds_runner.run_main())
     db = SessionLocal()
     window = crud.get_prediction(db,skip=id, limit=size)
     db.close()
     return window
 
 app.include_router(router.router, prefix='/prediction', tags=['prediction'])
+
+#if __name__ == '__main__':
+#    uvicorn.run(app, host='0.0.0.0', port=8000, workers=2)
