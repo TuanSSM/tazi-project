@@ -24,12 +24,12 @@ def create_prediction(db:Session, prediction: PredictionSchema):
 #def purge_books(db:Session):
 
 def get_matrix(db:Session,skip:int=0,limit:int=100):
-    return db.query(Matrix).offset(skip).limit(limit).all()
+    return db.query(ConfusionMatrix).offset(skip).limit(limit).all()
 
 def get_matrix_by_id(db:Session,matrix_id: int):
-    return db.query(Matrix).filter(Matrix.id == matrix_id).first()
+    return db.query(ConfusionMatrix).filter(ConfusionMatrix.id == matrix_id).first()
 
-def create_matrix(db:Session, prediction: PredictionSchema):
+def create_matrix(db:Session, matrix: ConfusionMatrixSchema):
     _matrix = Prediction(true_A = matrix.true_A,
                          false_A = matrix.false_A,
                          true_B = matrix.true_B,

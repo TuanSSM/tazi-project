@@ -34,3 +34,8 @@ class ConfusionMatrixSchema(BaseModel):
     true_B: Optional[int] = None
     false_B: Optional[int] = None
 
+    class Config:
+        orm_mode = True
+
+class RequestConfusionMatrix(BaseModel):
+    parameter: ConfusionMatrixSchema = Field(...)

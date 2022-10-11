@@ -24,7 +24,7 @@ async def create(request: RequestPrediction, db:Session=Depends(get_db)):
 @router.get('/')
 async def get(db:Session = Depends(get_db)):
     _prediction = crud.get_prediction(db,
-                                      0,
+                                      1,
                                       1000)
     return Response(code=200,
                     status='OK',
