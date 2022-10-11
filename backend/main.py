@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 import model
 from config import SessionLocal, engine
-import prouter #prediction router
-import wrouter #matrix router
+import router.prediction as pr #prediction router
+import router.matrix as mr #matrix router
 import asyncio
 import crud
 from schemas import RequestPrediction
@@ -11,6 +11,7 @@ from threading import Thread, Event
 import logging
 import uvicorn
 from collections import Counter
+import numpy as np
 
 model.Base.metadata.create_all(bind=engine)
 
@@ -32,6 +33,7 @@ class GrowingDataSource():
     def __init__(self, in_file):
         self.count = 0
         self.in_file = in_file
+        self.done = False
 
     def parse_prediction(self, csv_line):
         params = csv_line.replace('\n','').split(',')
@@ -61,14 +63,15 @@ class GrowingDataSource():
             for _ in range(1):
                 next(file)
             for line in file:
-                await asyncio.sleep(0.002)
+                await asyncio.sleep(np.random.exponential(0.002))
                 data = self.parse_prediction(line)
                 await push(data)
                 self.count += 1
-                #logging.debug(str(data))
                 logging.debug(f'Data creation successful for index: {self.count}')
                 if self.count == 1000: # Change it to 1000
                     event.set()
+        logger.debug(f'EOF')
+        self.done = True
 
 class ConfusionMatrix():
     def __init__(self):
@@ -82,12 +85,11 @@ class ConfusionMatrix():
 
     def predicted_label(self, pr : model.Prediction) -> (str,str):
         pr_a = [pr.model1_A, pr.model2_A, pr.model3_A]
-        pr_b = [pr.model1_B, pr.model2_B, pr.model3_B]
 
-        if pr_a == pr_b:
+        if pr_a == 0.5:
             raise Exception(f'Predictions are equal!')
 
-        predicted = 'A' if self.w_avg(pr_a) > self.w_avg(pr_b) else 'B'
+        predicted = 'A' if self.w_avg(pr_a) >= 0.5 else 'B'
 
         return pr.label, predicted
 
@@ -131,6 +133,8 @@ class ConfusionMatrix():
               await push(cm)
               self.slider += 1
               logging.debug(f'Confusion Matrix creation successful for index: {self.slider}')
+            if stop_backgroundtask | (ds_runner.done & self.slider+999 == ds_runner.count):
+              break
 
 class BackgroundTasks(Thread):
     def run(self, *args, **kwargs):
@@ -141,6 +145,7 @@ class BackgroundTasks(Thread):
 event = Event()
 ds_runner = GrowingDataSource(csv_file)
 cm_runner = ConfusionMatrix()
+stop_backgroundtask = False
 
 @app.on_event('startup')
 async def app_startup():
@@ -151,7 +156,8 @@ async def app_startup():
 @app.on_event("shutdown")
 def shutdown_event():
     with open("log.txt", mode="a") as log:
-        log.write(f'Application shutdown, with ds_runner at: {ds_runner.count}\n')
+        log.write(f'Application shutdown, with ds_runner at: {ds_runner.count} | slider at: {cm_runner.slider}\n')
+    stop_backgroundtask = True
     model.Base.metadata.drop_all(bind=engine)
     print('Database is purged')
 
@@ -166,8 +172,8 @@ async def Window(id:int,size=1000):
     db.close()
     return window
 
-app.include_router(prouter.router, prefix='/prediction', tags=['prediction'])
-app.include_router(wrouter.router, prefix='/matrix', tags=['matrix'])
+app.include_router(pr.router, prefix='/prediction', tags=['prediction'])
+app.include_router(mr.router, prefix='/matrix', tags=['matrix'])
 
 #if __name__ == '__main__':
 #    uvicorn.run(app, host='0.0.0.0', port=8000, workers=2)

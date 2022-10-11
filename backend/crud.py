@@ -38,4 +38,3 @@ def create_matrix(db:Session, matrix: ConfusionMatrixSchema):
     db.commit()
     db.refresh(_matrix)
     return _matrix
-
