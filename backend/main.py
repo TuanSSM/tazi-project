@@ -38,13 +38,7 @@ class GrowingDataSource():
         params = csv_line.replace('\n','').split(',')
         id , lbl, *mdls  = params
 
-        if lbl not in ['A','B']:
-            raise Exception(f'Label out of scope for CSV entry: {id} with label: ' + lbl)
-
         mdls = [float(elm) for elm in mdls]
-
-        #for mdl in mdsl:
-        #    if mdl
 
         mdl1_A, mdl1_B, mdl2_A, mdl2_B, mdl3_A, mdl3_B = mdls
 
@@ -57,7 +51,7 @@ class GrowingDataSource():
                                       model3_B = mdl3_B)
         return prediction
 
-    async def run_main(self, event):
+    async def run_main(self):#, event):
         with open(self.in_file) as file:
             for _ in range(1):
                 next(file)
@@ -68,7 +62,7 @@ class GrowingDataSource():
                 self.count += 1
                 logging.debug(f'Data creation successful for index: {self.count}')
         logger.debug(f'EOF the Data Source')
-        event.set()
+        #event.set()
         logger.debug('Event is set')
 
 class ConfusionMatrix():
@@ -128,8 +122,8 @@ class ConfusionMatrix():
 
         self.window.append(new_res)
 
-        if exclude_pred != new_res:
-            self.window2matrix()
+        #if exclude_pred != new_res:
+        self.window2matrix()
 
         self.iterator += 1
 
@@ -138,7 +132,7 @@ class ConfusionMatrix():
         self.p_count = crud.get_prediction_count(db)
         db.close()
 
-    async def run_swindow(self, event):
+    async def run_swindow(self):#, event):
         logging.debug('!!!Confusion matrix RUNNER is WORKING!!!')
         while True:
             await self.updatePredictionCount()
@@ -152,15 +146,15 @@ class ConfusionMatrix():
                 await push(self.cm)
                 logging.debug(f'Confusion Matrix creation successful for index: {self.iterator}')
 
-            if stop_task | (event.isSet() & (self.iterator == self.p_count)):
-              break
+            #if stop_task | (event.isSet() & (self.iterator == self.p_count)):
+            #  break
 
 class BackgroundTasks(Thread):
     def run(self, *args, **kwargs):
-        asyncio.run(cm_runner.run_swindow(event))
+        asyncio.run(cm_runner.run_swindow())#event))
         logging.debug('Worker closing down')
 
-event = Event()
+#event = Event()
 ds_runner = GrowingDataSource(csv_file)
 cm_runner = ConfusionMatrix()
 stop_task = False
@@ -169,7 +163,7 @@ stop_task = False
 async def app_startup():
     t = BackgroundTasks()
     t.start()
-    asyncio.create_task(ds_runner.run_main(event))
+    asyncio.create_task(ds_runner.run_main())#event))
 
 @app.on_event("shutdown")
 def shutdown_event():

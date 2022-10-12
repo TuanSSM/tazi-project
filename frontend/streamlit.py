@@ -15,6 +15,8 @@ hide_st_style = '''
             #MainMenu {visibility: hidden;}
             header {visibility: hidden;}
             footer {visibility: hidden;}
+            thead tr th:first-child {display:none}
+            tbody th {display:none}
             </style>
             '''
 
@@ -31,14 +33,16 @@ ex_item = requests.get(base_url + 'predict?id=' + str(number))
 next_item = requests.get(base_url + 'predict?id=' + str(number+1000))
 
 def parse_predict(info):
-    if info == 'AA':
-        return  'True A'
-    elif info == 'BA':
-        return 'False A'
-    elif info == 'BB':
-        return 'True B'
-    elif info == 'AB':
-        return 'False B'
+    res = ''
+    if info == '"AA"':
+        res = 'True A'
+    elif info == '"BA"':
+        res = 'False A'
+    elif info == '"BB"':
+        res = 'True B'
+    elif info == '"AB"':
+        res = 'False B'
+    return res
 
 ex_res = parse_predict(ex_item.text)
 next_res = parse_predict(next_item.text)
@@ -53,16 +57,18 @@ f_B = m["false_B"]
 bar_data = {'Prediction': ['True A', 'False A', 'True B', 'False B'], 'Occurence' : [t_A,f_A,t_B,f_B]}
 fig = px.bar(bar_data,
              color='Prediction',
-             title='Confusion Matrix',
              x='Prediction',
              y='Occurence')
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader('Excluding Prediction')
-    st.markdown(f'> Actual label is **{ex_item.text[1]}** \n Prediction is **{ex_item.text[2]}**')
-    st.subheader('Upcoming Prediction')
-    st.markdown(f'> Actual label is **{next_item.text[1]}** \n Prediction is **{next_item.text[2]}**')
+    st.table(pd.DataFrame({
+        'A': [t_A,f_A],
+        'B': [t_B,f_B]}))
+    st.markdown(f'##### Prediction {number} will be discarded')
+    st.markdown(f'>{ex_res}\n Actual label is **{ex_item.text[1]}** \n Prediction is **{ex_item.text[2]}**')
+    st.markdown(f'##### Prediction {number+1000} will included')
+    st.markdown(f'>{next_res}\n Actual label is **{next_item.text[1]}** \n Prediction is **{next_item.text[2]}**')
 with col2:
     st.plotly_chart(fig, use_container_width=True)
