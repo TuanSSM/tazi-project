@@ -8,6 +8,9 @@ def get_prediction(db:Session,skip:int=1,limit:int=10000):
 def get_prediction_by_id(db:Session,prediction_id: int):
     return db.query(Prediction).filter(Prediction.id == prediction_id).first()
 
+def get_prediction_count(db:Session):
+    return db.query(Prediction).count()
+
 def create_prediction(db:Session, prediction: PredictionSchema):
     _prediction = Prediction(label = prediction.label,
                              model1_A = prediction.model1_A,

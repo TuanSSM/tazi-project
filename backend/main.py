@@ -33,7 +33,6 @@ class GrowingDataSource():
     def __init__(self, in_file):
         self.count = 0
         self.in_file = in_file
-        self.done = False
 
     def parse_prediction(self, csv_line):
         params = csv_line.replace('\n','').split(',')
@@ -68,15 +67,16 @@ class GrowingDataSource():
                 await push(data)
                 self.count += 1
                 logging.debug(f'Data creation successful for index: {self.count}')
-                if self.count == 1000: # Change it to 1000
-                    event.set()
-        logger.debug(f'EOF')
-        self.done = True
+        logger.debug(f'EOF the Data Source')
+        event.set()
+        logger.debug('Event is set')
 
 class ConfusionMatrix():
     def __init__(self):
-        self.slider = 0
-        self.cm_data = None
+        self.p_count = 0
+        self.iterator = 1
+        self.window = []
+        self.cm = None
 
     def w_avg(self, values: [float,float,float]) -> float:
         weights = [0.5,0.6,0.7]
@@ -87,65 +87,83 @@ class ConfusionMatrix():
         pr_a = [pr.model1_A, pr.model2_A, pr.model3_A]
 
         if pr_a == 0.5:
-            raise Exception(f'Predictions are equal!')
+            logging.log(f'Predictions are equal for item: pr.id')
 
         predicted = 'A' if self.w_avg(pr_a) >= 0.5 else 'B'
+        res = pr.label + predicted
 
-        return pr.label, predicted
+        return res
 
-    def counter2matrix(self) -> model.ConfusionMatrix:
-        t_A, f_A, t_B, f_B = self.cm_data.values()
+    def window2matrix(self) -> model.ConfusionMatrix:
+        results = Counter(self.window)
 
-        cm = model.ConfusionMatrix(true_A = t_A,
-                                   false_A = f_A,
-                                   true_B = t_B,
-                                   false_B = f_B)
-        return cm
+        cm = model.ConfusionMatrix(true_A = results['AA'],
+                                   false_A = results['BA'],
+                                   true_B = results['BB'],
+                                   false_B = results['AB'])
 
-    def init_window(self, db:Session):
-        window = crud.get_prediction(db, limit=1000) # Change limit to 1000
+        self.cm = cm
+
+    async def init_window(self):
+        while self.iterator < 1001:
+            await self.updatePredictionCount()
+            if self.p_count > self.iterator:
+              db = SessionLocal()
+              raw = crud.get_prediction_by_id(db, prediction_id=self.iterator)
+              db.close()
+              self.window.append(self.predicted_label(raw))
+              logging.debug(f'log0 Iterator: {self.iterator}')
+              self.iterator += 1
+        self.window2matrix()
+
+    async def slide_matrix(self):
+        exclude_pred = self.window.pop(0)
+        db = SessionLocal()
+        logging.debug(f'Getting item: {self.iterator}')
+        new = crud.get_prediction_by_id(db,prediction_id=self.iterator)
+        new_res = self.predicted_label(new)
+        print(new_res)
         db.close()
-        initMatrixList = []
-        for p in window:
-            real, pred = self.predicted_label(p)
-            initMatrixList.append((real,pred))
-        c = Counter(initMatrixList)
-        self.cm_data = c
+        logging.debug(f'item: {new_res}')
 
-    def slide_matrix(self, db: Session):
-        exclude_pred = crud.get_prediction_by_id(db,self.slider)
-        new_pred = crud.get_prediction_by_id(db,self.slider+1000)
+        self.window.append(new_res)
+
+        if exclude_pred != new_res:
+            self.window2matrix()
+
+        self.iterator += 1
+
+    async def updatePredictionCount(self):
+        db = SessionLocal()
+        self.p_count = crud.get_prediction_count(db)
         db.close()
 
-        self.cm_data.subtract([self.predicted_label(exclude_pred)])
-        self.cm_data.update([self.predicted_label(new_pred)])
-
-    async def run_swindow(self):
+    async def run_swindow(self, event):
         logging.debug('!!!Confusion matrix RUNNER is WORKING!!!')
         while True:
-            if self.slider+999 != ds_runner.count: # Change this later
-              db = SessionLocal()
-              if self.slider == 0: # get rid of this later
-                  self.init_window(db)
-              else:
-                  self.slide_matrix(db)
-              cm = self.counter2matrix()
-              await push(cm)
-              self.slider += 1
-              logging.debug(f'Confusion Matrix creation successful for index: {self.slider}')
-            if stop_backgroundtask | (ds_runner.done & self.slider+999 == ds_runner.count):
+            await self.updatePredictionCount()
+            if self.p_count >= self.iterator:
+                if self.cm is None:
+                  logging.debug('!!!Initializin first CM!!!')
+                  await self.init_window()
+                  logging.debug('!!!First CM initialized!!!')
+                else:
+                  await self.slide_matrix()
+                await push(self.cm)
+                logging.debug(f'Confusion Matrix creation successful for index: {self.iterator}')
+
+            if stop_task | (event.isSet() & (self.iterator == self.p_count)):
               break
 
 class BackgroundTasks(Thread):
     def run(self, *args, **kwargs):
-        event.wait()
-        asyncio.run(cm_runner.run_swindow())
+        asyncio.run(cm_runner.run_swindow(event))
         logging.debug('Worker closing down')
 
 event = Event()
 ds_runner = GrowingDataSource(csv_file)
 cm_runner = ConfusionMatrix()
-stop_backgroundtask = False
+stop_task = False
 
 @app.on_event('startup')
 async def app_startup():
@@ -156,14 +174,14 @@ async def app_startup():
 @app.on_event("shutdown")
 def shutdown_event():
     with open("logs/log.txt", mode="a") as log:
-        log.write(f'Application shutdown, with ds_runner at: {ds_runner.count} | slider at: {cm_runner.slider}\n')
-    stop_backgroundtask = True
+        log.write(f'Application shutdown, with ds_runner at: {ds_runner.count} | slider at: {cm_runner.iterator}\n')
+    stop_task = True
     model.Base.metadata.drop_all(bind=engine)
     print('Database is purged')
 
 @app.get('/')
 async def Home():
-    return f'Welcome Home, btw ds_runner is at: {ds_runner.count}, slider is at: {cm_runner.slider}'
+    return f'Welcome Home, btw ds_runner is at: {ds_runner.count}, slider is at: {cm_runner.iterator}'
 
 @app.get('/sliding_window')
 async def Window(id:int,size=1000):
@@ -171,6 +189,14 @@ async def Window(id:int,size=1000):
     window = crud.get_prediction(db,skip=id, limit=size)
     db.close()
     return window
+
+@app.get('/predict')
+async def Calculate(id:int):
+    db = SessionLocal()
+    pred = crud.get_prediction_by_id(db,id)
+    db.close()
+    result = cm_runner.predicted_label(pred)
+    return result
 
 app.include_router(pr.router, prefix='/prediction', tags=['prediction'])
 app.include_router(mr.router, prefix='/matrix', tags=['matrix'])

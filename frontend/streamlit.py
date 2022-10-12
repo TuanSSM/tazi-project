@@ -2,33 +2,13 @@ import streamlit as st
 import json
 import requests
 import pandas as pd
+import plotly.express as px
 
 from streamlit_option_menu import option_menu
 
-st.title('Tazi Project')
+#st.set_page_config(layout="wide")
 
-about_md = '''
-About lorem ipsum
-'''
-
-prediction_md = '''
-Model Prediction lorem ipsum
-'''
-
-matrix_md = '''
-Model Prediction lorem ipsum
-'''
-
-choice = option_menu(None, ['Matrix'] ,#[ 'About', 'Model Predictions', 'Matrix'],#'Image', , 'Office File'
-    icons= ['table'],#['house', 'list-ol', 'table'],
-    menu_icon='cast', default_index=0, orientation='horizontal',
-    styles={
-        'container': {'padding': '5!important'} #, 'background-color': '#fafafa'},
-        #'icon': {'color': 'orange', 'font-size': '25px'}, 
-        #'nav-link': {'font-size': '25px', 'text-align': 'left', 'margin':'0px', '--hover-color': '#eee'},
-        #'nav-link-selected': {'background-color': 'green'},
-    }
-                     )
+st.title('Tazı Project')
 
 hide_st_style = '''
             <style>
@@ -42,33 +22,47 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 
 base_url = 'http://127.0.0.1:8000/'
 
-if choice == 'Model Predictions':
-    st.subheader('Model Predictions')
-    st.markdown(prediction_md)
+st.subheader('Confusion Matrices')
 
-    if st.button('Get'):
-        res = requests.get(url = base_url + 'prediction/1')
+number = st.number_input('Index', min_value=1, max_value=99001)
 
-    st.subheader(f'Response from API = {res.text}')
+matrix = requests.get(base_url + 'matrix/' + str(number))
+ex_item = requests.get(base_url + 'predict?id=' + str(number))
+next_item = requests.get(base_url + 'predict?id=' + str(number+1000))
 
-elif choice == 'Matrix':
-    st.subheader('Matrix')
-    st.markdown(matrix_md)
+def parse_predict(info):
+    if info == 'AA':
+        return  'True A'
+    elif info == 'BA':
+        return 'False A'
+    elif info == 'BB':
+        return 'True B'
+    elif info == 'AB':
+        return 'False B'
 
-    number = st.number_input('Index', min_value=1, max_value=99001)
+ex_res = parse_predict(ex_item.text)
+next_res = parse_predict(next_item.text)
 
-    window = requests.get(base_url + 'sliding_window?id=' + str(number))
-    matrix = requests.get(base_url + 'matrix/' + str(number))
+m = matrix.json()['result']
 
-    w_df = pd.DataFrame.from_dict(window.json())
-    st.dataframe(w_df)
+t_A = m["true_A"]
+f_A = m["false_A"]
+t_B = m["true_B"]
+f_B = m["false_B"]
 
-    m = matrix.json()['result']
+bar_data = {'Prediction': ['True A', 'False A', 'True B', 'False B'], 'Occurence' : [t_A,f_A,t_B,f_B]}
+fig = px.bar(bar_data,
+             color='Prediction',
+             title='Confusion Matrix',
+             x='Prediction',
+             y='Occurence')
 
-    st.markdown(f'True A: {m["true_A"]} | False A: {m["false_A"]}')
-    st.markdown(f'True B: {m["true_B"]} | False B: {m["false_B"]}')
+col1, col2 = st.columns(2)
 
-else:
-    st.subheader('About')
-    st.markdown(about_md)
-
+with col1:
+    st.subheader('Excluding Prediction')
+    st.markdown(f'> Actual label is **{ex_item.text[1]}** \n Prediction is **{ex_item.text[2]}**')
+    st.subheader('Upcoming Prediction')
+    st.markdown(f'> Actual label is **{next_item.text[1]}** \n Prediction is **{next_item.text[2]}**')
+with col2:
+    st.plotly_chart(fig, use_container_width=True)
