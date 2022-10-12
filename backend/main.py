@@ -9,14 +9,15 @@ from schemas import RequestPrediction
 from sqlalchemy.orm import Session
 from threading import Thread, Event
 import logging
-import uvicorn
 from collections import Counter
+import asyncio
 import numpy as np
+import logging
 
 model.Base.metadata.create_all(bind=engine)
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='(%(threadName)-9s) %(message)s',)
+logconf = logging.basicConfig(level=logging.INFO,
+                              format='(%(threadName)-9s) %(message)s',)
 
 app = FastAPI()
 
@@ -34,7 +35,7 @@ class GrowingDataSource():
         self.count = 0
         self.in_file = in_file
 
-    def parse_prediction(self, csv_line):
+    def parse_prediction(self, csv_line) -> model.Prediction:
         params = csv_line.replace('\n','').split(',')
         id , lbl, *mdls  = params
 
@@ -43,15 +44,15 @@ class GrowingDataSource():
         mdl1_A, mdl1_B, mdl2_A, mdl2_B, mdl3_A, mdl3_B = mdls
 
         prediction = model.Prediction(label = lbl,
-                                      model1_A = mdl1_A,
-                                      model1_B = mdl1_B,
-                                      model2_A = mdl2_A,
-                                      model2_B = mdl2_B,
-                                      model3_A = mdl3_A,
-                                      model3_B = mdl3_B)
+                                model1_A = mdl1_A,
+                                model1_B = mdl1_B,
+                                model2_A = mdl2_A,
+                                model2_B = mdl2_B,
+                                model3_A = mdl3_A,
+                                model3_B = mdl3_B)
         return prediction
 
-    async def run_main(self):#, event):
+    async def run_main(self):
         with open(self.in_file) as file:
             for _ in range(1):
                 next(file)
@@ -62,8 +63,6 @@ class GrowingDataSource():
                 self.count += 1
                 logging.debug(f'Data creation successful for index: {self.count}')
         logger.debug(f'EOF the Data Source')
-        #event.set()
-        logger.debug('Event is set')
 
 class ConfusionMatrix():
     def __init__(self):
@@ -106,7 +105,7 @@ class ConfusionMatrix():
               raw = crud.get_prediction_by_id(db, prediction_id=self.iterator)
               db.close()
               self.window.append(self.predicted_label(raw))
-              logging.debug(f'log0 Iterator: {self.iterator}')
+              logging.debug(f'Sliding Window Iterator: {self.iterator}')
               self.iterator += 1
         self.window2matrix()
 
@@ -114,15 +113,11 @@ class ConfusionMatrix():
         exclude_pred = self.window.pop(0)
         db = SessionLocal()
         logging.debug(f'Getting item: {self.iterator}')
+
         new = crud.get_prediction_by_id(db,prediction_id=self.iterator)
         new_res = self.predicted_label(new)
-        print(new_res)
         db.close()
-        logging.debug(f'item: {new_res}')
-
         self.window.append(new_res)
-
-        #if exclude_pred != new_res:
         self.window2matrix()
 
         self.iterator += 1
@@ -133,21 +128,17 @@ class ConfusionMatrix():
         db.close()
 
     async def run_swindow(self):#, event):
-        logging.debug('!!!Confusion matrix RUNNER is WORKING!!!')
         while True:
             await self.updatePredictionCount()
             if self.p_count >= self.iterator:
                 if self.cm is None:
-                  logging.debug('!!!Initializin first CM!!!')
                   await self.init_window()
-                  logging.debug('!!!First CM initialized!!!')
                 else:
                   await self.slide_matrix()
                 await push(self.cm)
                 logging.debug(f'Confusion Matrix creation successful for index: {self.iterator}')
-
-            #if stop_task | (event.isSet() & (self.iterator == self.p_count)):
-            #  break
+            if stop_task:
+                break
 
 class BackgroundTasks(Thread):
     def run(self, *args, **kwargs):
@@ -194,6 +185,3 @@ async def Calculate(id:int):
 
 app.include_router(pr.router, prefix='/prediction', tags=['prediction'])
 app.include_router(mr.router, prefix='/matrix', tags=['matrix'])
-
-#if __name__ == '__main__':
-#    uvicorn.run(app, host='0.0.0.0', port=8000, workers=2)

@@ -24,8 +24,6 @@ def create_prediction(db:Session, prediction: PredictionSchema):
     db.refresh(_prediction)
     return _prediction
 
-#def purge_books(db:Session):
-
 def get_matrix(db:Session,skip:int=0,limit:int=100):
     return db.query(ConfusionMatrix).offset(skip).limit(limit).all()
 
