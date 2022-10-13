@@ -91,7 +91,7 @@ else:
     with col1:
         st.markdown(f'*Prediction {number}* `{ex_res}` will be discarded')
     with col2:
-        st.markdown(f'*Prediction {number+1000}* `{next_res}` will included')
+        st.markdown(f'*Prediction {number+1000}* `{next_res}` will be included')
 
 st.plotly_chart(fig)
 
