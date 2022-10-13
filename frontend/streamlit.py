@@ -2,13 +2,13 @@ import streamlit as st
 import json
 import requests
 import pandas as pd
-import plotly.express as px
+import plotly.figure_factory as ff
 
 from streamlit_option_menu import option_menu
 
 #st.set_page_config(layout="wide")
 
-st.title('Tazı Project')
+st.title('TAZI - Project')
 
 hide_st_style = '''
             <style>
@@ -49,26 +49,49 @@ next_res = parse_predict(next_item.text)
 
 m = matrix.json()['result']
 
-t_A = m["true_A"]
-f_A = m["false_A"]
-t_B = m["true_B"]
-f_B = m["false_B"]
+z = [[m["true_B"], m["false_B"]],
+     [m["true_A"], m["false_A"]]]
 
-bar_data = {'Prediction': ['True A', 'False A', 'True B', 'False B'], 'Occurence' : [t_A,f_A,t_B,f_B]}
-fig = px.bar(bar_data,
-             color='Prediction',
-             x='Prediction',
-             y='Occurence')
+x = ['A', 'B']
+y = ['B', 'A']
+z_text = [[str(y) for y in x] for x in z]
 
-col1, col2 = st.columns(2)
+fig = ff.create_annotated_heatmap(z, x=x, y=y, annotation_text=z_text, colorscale='Viridis')
 
-with col1:
-    st.table(pd.DataFrame({
-        'A': [t_A,f_A],
-        'B': [t_B,f_B]}))
-    st.markdown(f'##### Prediction {number} will be discarded')
-    st.markdown(f'>{ex_res}\n Actual label is **{ex_item.text[1]}** \n Prediction is **{ex_item.text[2]}**')
-    st.markdown(f'##### Prediction {number+1000} will included')
-    st.markdown(f'>{next_res}\n Actual label is **{next_item.text[1]}** \n Prediction is **{next_item.text[2]}**')
-with col2:
-    st.plotly_chart(fig, use_container_width=True)
+fig.update_layout(title_text='<i><b>Confusion matrix</b></i>',
+                 )
+
+fig.add_annotation(dict(font=dict(color="white",size=14),
+                        x=0.5,
+                        y=-0.15,
+                        showarrow=False,
+                        text="Predicted value",
+                        xref="paper",
+                        yref="paper"))
+
+fig.add_annotation(dict(font=dict(color="white",size=14),
+                        x=-0.35,
+                        y=0.5,
+                        showarrow=False,
+                        text="Real value",
+                        textangle=-90,
+                        xref="paper",
+                        yref="paper"))
+
+fig.update_layout(margin=dict(t=50, l=50, r=150))
+
+fig['data'][0]['showscale'] = True
+
+st.markdown(f'**In the *Matrix {number+1}*:**')
+
+if ex_res == next_res:
+    st.markdown(f'*Results will remain same*')
+else:
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f'*Prediction {number}* `{ex_res}` will be discarded')
+    with col2:
+        st.markdown(f'*Prediction {number+1000}* `{next_res}` will included')
+
+st.plotly_chart(fig)
+

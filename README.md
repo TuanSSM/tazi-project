@@ -49,6 +49,6 @@ As you can see, our calculation thread waits for new inputs on Database even aft
 
 ## UI
 
-On `localhost:8501` there is a bar plot for given matrix id, and showing on next matrix which predictions are going to be discarded and included.
+On `localhost:8501` there is an interface for visualisation of the given matrix id, and information for the upcoming matrix.
 
 ![UI](media/ui.gif)
