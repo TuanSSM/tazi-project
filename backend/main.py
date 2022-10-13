@@ -80,7 +80,7 @@ class ConfusionMatrix():
         pr_a = [pr.model1_A, pr.model2_A, pr.model3_A]
 
         if pr_a == 0.5:
-            logging.log(f'Predictions are equal for item: pr.id')
+            logging.debug(f'Predictions are equal for item: pr.id')
 
         predicted = 'A' if self.w_avg(pr_a) >= 0.5 else 'B'
         res = pr.label + predicted
@@ -100,7 +100,7 @@ class ConfusionMatrix():
     async def init_window(self):
         while self.iterator < 1001:
             await self.updatePredictionCount()
-            if self.p_count > self.iterator:
+            if self.p_count >= self.iterator:
               db = SessionLocal()
               raw = crud.get_prediction_by_id(db, prediction_id=self.iterator)
               db.close()
@@ -112,7 +112,7 @@ class ConfusionMatrix():
     async def slide_matrix(self):
         exclude_pred = self.window.pop(0)
         db = SessionLocal()
-        logging.debug(f'Getting item: {self.iterator}')
+        logging.debug(f'Sliding Window for item: {self.iterator}')
 
         new = crud.get_prediction_by_id(db,prediction_id=self.iterator)
         new_res = self.predicted_label(new)
@@ -136,7 +136,7 @@ class ConfusionMatrix():
                 else:
                   await self.slide_matrix()
                 await push(self.cm)
-                logging.debug(f'Confusion Matrix creation successful for index: {self.iterator}')
+                logging.debug(f'Confusion Matrix creation successful for index: {self.iterator-1000}')
             if stop_task:
                 break
 
@@ -158,8 +158,6 @@ async def app_startup():
 
 @app.on_event("shutdown")
 def shutdown_event():
-    with open("logs/log.txt", mode="a") as log:
-        log.write(f'Application shutdown, with ds_runner at: {ds_runner.count} | slider at: {cm_runner.iterator}\n')
     stop_task = True
     model.Base.metadata.drop_all(bind=engine)
     print('Database is purged')
