@@ -105,8 +105,6 @@ async def app_startup():
 
 @app.on_event("shutdown")
 def shutdown_event():
-    with open("logs/log.txt", mode="a") as log:
-        log.write(f'Application shutdown, with ds_runner at: {ds_runner.count} | slider at: {cm_runner.iterator}\n')
     stop_task = True
     Base.metadata.drop_all(bind=engine)
     print('Database is purged')
