@@ -52,3 +52,25 @@ As you can see, our calculation thread waits for new inputs on Database even aft
 On `localhost:8501` there is an interface for visualisation of the given matrix id, and information for the upcoming matrix.
 
 ![UI](media/ui.gif)
+
+# How to use it
+
+Instructions are the same for both backend & frontend.
+
+Go to the directory and install requirements
+
+```console
+pip3 install -r requirements.txt
+```
+
+Make `run.sh` executable and run it!
+
+```console
+chmod +x run.sh
+./run.sh
+```
+
+# Todo
+
++ Unit testing
++ Better logging
