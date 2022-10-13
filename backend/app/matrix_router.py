@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Path, Depends
-from config import SessionLocal
+from .config import SessionLocal
 from sqlalchemy.orm import Session
-from schemas import ConfusionMatrixSchema,RequestConfusionMatrix,Response
-import crud
+from .schemas import ConfusionMatrixSchema,RequestConfusionMatrix,Response
+from .crud import *
 
 router = APIRouter()
 
@@ -13,9 +13,10 @@ def get_db():
     finally:
         db.close()
 
+
 @router.post('/create')
 async def create(request: RequestConfusionMatrix, db:Session=Depends(get_db)):
-    crud.create_matrix(db,
+    create_matrix(db,
                        matrix = request.parameter)
     return Response(code=200,
                     status='OK',
@@ -23,7 +24,7 @@ async def create(request: RequestConfusionMatrix, db:Session=Depends(get_db)):
 
 @router.get('/')
 async def get(db:Session = Depends(get_db)):
-    _matrix = crud.get_matrix(db,
+    _matrix = get_matrix(db,
                               0,
                               1000)
     return Response(code=200,
@@ -33,7 +34,7 @@ async def get(db:Session = Depends(get_db)):
 
 @router.get('/{id}')
 async def get_by_id(id:int, db:Session = Depends(get_db)):
-    _matrix = crud.get_matrix_by_id(db, id)
+    _matrix = get_matrix_by_id(db, id)
     return Response(code=200,
                     status='OK',
                     message=f'Success Fetch matrix: {id}',

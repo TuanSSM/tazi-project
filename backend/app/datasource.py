@@ -1,8 +1,8 @@
-from config import SessionLocal,logconf
+from .config import SessionLocal
 import asyncio
 import numpy as np
-import logging
-from model import Prediction
+from .prediction_router import push
+from .model import Prediction
 
 class GrowingDataSource():
     def __init__(self, in_file):
@@ -26,13 +26,6 @@ class GrowingDataSource():
                                 model3_B = mdl3_B)
         return prediction
 
-    async def push(self, data):
-        db = SessionLocal()
-        db.add(data)
-        db.commit()
-        db.refresh(data)
-        db.close()
-
     async def run_main(self):
         with open(self.in_file) as file:
             for _ in range(1):
@@ -40,7 +33,5 @@ class GrowingDataSource():
             for line in file:
                 await asyncio.sleep(np.random.exponential(0.002))
                 data = self.parse_prediction(line)
-                await self.push(data)
+                await push(data)
                 self.count += 1
-                logging.debug(f'Data creation successful for index: {self.count}')
-        logger.debug(f'EOF the Data Source')

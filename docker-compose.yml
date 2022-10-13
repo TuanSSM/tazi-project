@@ -1,0 +1,37 @@
+version: '3'
+services:
+
+  tazi-postgres:
+    image: "postgres:12-alpine"
+    container_name: tazi-postgres
+    volumes:
+      - tazi-data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_DB=tazi
+      - POSTGRES_USER=tazi
+      - POSTGRES_PASSWORD=tazi
+
+  tazi-app:
+    build: ./backend
+    container_name: tazi-app
+    environment:
+      - DB:tazi
+      - DB_USER:tazi
+      - DB_PASSWORD:tazi
+    ports:
+      - 8000:8000
+    links:
+      - tazi-postgres
+
+  tazi-ui:
+    build: ./frontend
+    container_name: tazi-ui
+    ports:
+      - 8501:8501
+    links:
+      - tazi-app
+
+volumes:
+  tazi-data:

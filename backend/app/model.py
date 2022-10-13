@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, Float, String
-from config import Base
+from .config import Base
 
 class Prediction(Base):
     __tablename__ = 'prediction'

@@ -22,7 +22,7 @@ hide_st_style = '''
 
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
-base_url = 'http://127.0.0.1:8000/'
+base_url = 'http://tazi-app:8000/'
 
 st.subheader('Confusion Matrices')
 

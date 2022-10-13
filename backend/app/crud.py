@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from model import Prediction, ConfusionMatrix
-from schemas import PredictionSchema, ConfusionMatrixSchema
+from .model import Prediction, ConfusionMatrix
+from .schemas import PredictionSchema, ConfusionMatrixSchema
 
 def get_prediction(db:Session,skip:int=1,limit:int=10000):
     return db.query(Prediction).offset(skip-1).limit(limit).all()
