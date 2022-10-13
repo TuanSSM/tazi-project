@@ -70,6 +70,10 @@ chmod +x run.sh
 ./run.sh
 ```
 
+Open your browser and check
++ [localhost:8000](localhost:8000) for backend
++ [localhost:8501](localhost:8501) for frontend
+
 # Todo
 
 + Unit testing
