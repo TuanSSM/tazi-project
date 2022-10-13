@@ -1,4 +1,4 @@
-# Tazı Project
+# TAZI Project
 
 Objective is to simulate 2 concurrent tasks:
 
